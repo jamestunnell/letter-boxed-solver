@@ -5,6 +5,9 @@ Command-line tool to solve puzzles like the NYT letter boxed puzzle.
 The NYT letter-boxed puzzle has four sides with three letters, forming a box. The letters are not repeated. The puzzle is solved using a list of words. For each word, there must not be two consecutive letters from the same side. The first letter of each word after the first word must match the last letter of the previous word. Also, a puzzle has a max solution word count.
 
 ## Solver
+
+The solver attempts to find all possible solution, starting with those that should lead to the shortest solutions.
+
 The solver begins by loading a dictionary of words that *might* be accepted by the actual NYT puzzle app/website. Then the puzzle is used to determine which of these words are allowed.
 
 The allowed words are sorted by score. Searching proceeds in order from highest to lowest score. Words are scored according to how many and which puzzle letters they will visit. A weighted scoring system favors letters that occur in fewer of the allowed words. The total word score is the weighted sum of letter scores.
