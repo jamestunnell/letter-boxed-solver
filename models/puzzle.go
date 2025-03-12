@@ -26,6 +26,14 @@ type Side []rune
 
 var errLetterRepeated = errors.New("letter is repeated")
 
+func NewPuzzle(sides []string, maxWords int) *Puzzle {
+	p := &Puzzle{}
+
+	p.Init(sides, maxWords)
+
+	return p
+}
+
 func (p *Puzzle) UnmarshalJSON(d []byte) error {
 	var pd PuzzleData
 
@@ -44,16 +52,16 @@ func (p *Puzzle) UnmarshalJSON(d []byte) error {
 		}
 	}
 
-	p.Init(&pd)
+	p.Init(pd.Sides, pd.MaxWords)
 
 	return nil
 }
 
-func (p *Puzzle) Init(pd *PuzzleData) {
+func (p *Puzzle) Init(sides []string, maxWords int) {
 	antiConnections := map[rune][]rune{}
 	letterSet := bit.New()
 
-	for _, side := range pd.Sides {
+	for _, side := range sides {
 		side = strings.ToUpper(side)
 
 		for _, ch := range side {
@@ -63,10 +71,10 @@ func (p *Puzzle) Init(pd *PuzzleData) {
 		}
 	}
 
-	p.sides = pd.Sides
+	p.sides = sides
 	p.antiConnections = antiConnections
 	p.letterSet = letterSet
-	p.maxWords = pd.MaxWords
+	p.maxWords = maxWords
 }
 
 func (p *Puzzle) GetMaxWords() int {

@@ -28,16 +28,29 @@ var words embed.FS
 type ListBuiltinCmd struct {
 }
 
-type SolveBuiltinCmd struct {
+type SolveCmd struct {
 	MaxBranch int    `help:"max degree of a solving branch" default:"5"`
 	MaxTime   string `help:"max time to spend solving" default:"250ms"`
-	Filename  string `arg:"-f,required" help:"name of a built-in puzzle file"`
 	Outdir    string `arg:"-o" help:"output directory (created if it does not exist)" default:"."`
+}
+
+type SolveBuiltinCmd struct {
+	SolveCmd
+
+	Fname string `arg:"required" help:"name of a built-in puzzle file"`
+}
+
+type SolveGivenCmd struct {
+	SolveCmd
+
+	MaxWords int      `arg:"required" help:"Max words to allow for puzzle solution"`
+	Sides    []string `arg:"required" help:"Puzzle sides, with letters combined (e.g. abc def ghi jkl)"`
 }
 
 type Args struct {
 	ListBuiltin  *ListBuiltinCmd  `arg:"subcommand:list-builtin" help:"list built-in puzzle files"`
 	SolveBuiltin *SolveBuiltinCmd `arg:"subcommand:solve-builtin" help:"solve built-in puzzle file"`
+	SolveGiven   *SolveGivenCmd   `arg:"subcommand:solve-given" help:"solve given puzzle"`
 }
 
 func (args Args) Version() string {
@@ -81,6 +94,8 @@ func main() {
 		err = listBuiltin()
 	case args.SolveBuiltin != nil:
 		err = solveBuiltin(args.SolveBuiltin)
+	case args.SolveGiven != nil:
+		err = solveGiven(args.SolveGiven)
 	default:
 	}
 
@@ -107,8 +122,8 @@ func listBuiltin() error {
 }
 
 func solveBuiltin(cmd *SolveBuiltinCmd) error {
-	fname := fmt.Sprintf("puzzles/%s", cmd.Filename)
-	name := strings.TrimSuffix(cmd.Filename, path.Ext(cmd.Filename))
+	fname := fmt.Sprintf("puzzles/%s", cmd.Fname)
+	name := strings.TrimSuffix(cmd.Fname, path.Ext(cmd.Fname))
 	outpath := fmt.Sprintf("%s/%s-solutions.txt", cmd.Outdir, name)
 
 	maxTime, err := time.ParseDuration(cmd.MaxTime)
@@ -121,13 +136,50 @@ func solveBuiltin(cmd *SolveBuiltinCmd) error {
 		return fmt.Errorf("error: failed to open built-in puzzle file: %w", err)
 	}
 
-	log.Info().
-		Str("maxTime", cmd.MaxTime).
-		Str("fname", fname).
-		Str("outpath", outpath).
-		Msg("solving built-in puzzle")
+	puzzle, err := loadPuzzle(f)
+	if err != nil {
+		return fmt.Errorf("failed to load puzzle: %w", err)
+	}
 
-	solutions, err := solve(f, maxTime, cmd.MaxBranch)
+	log.Info().
+		Str("name", cmd.Fname).
+		Msg("loaded built-in puzzle")
+
+	solutions, err := solve(puzzle, maxTime, cmd.MaxBranch)
+	if err != nil {
+		return err
+	}
+
+	if err = reportSolutions(solutions, outpath); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var (
+	errNoSides            = errors.New("puzzle has no sides")
+	errMaxWordNotPositive = errors.New("max words is not > 0")
+)
+
+func solveGiven(cmd *SolveGivenCmd) error {
+	if len(cmd.Sides) == 0 {
+		return errNoSides
+	}
+
+	if cmd.MaxWords < 1 {
+		return errMaxWordNotPositive
+	}
+
+	p := models.NewPuzzle(cmd.Sides, cmd.MaxWords)
+	outpath := fmt.Sprintf("%s/solutions.txt", cmd.Outdir)
+
+	maxTime, err := time.ParseDuration(cmd.MaxTime)
+	if err != nil {
+		return fmt.Errorf("error: failed to parse max time: %w", err)
+	}
+
+	solutions, err := solve(p, maxTime, cmd.MaxBranch)
 	if err != nil {
 		return err
 	}
@@ -150,20 +202,17 @@ func loadPuzzle(puzzleFile fs.File) (*models.Puzzle, error) {
 }
 
 func solve(
-	puzzleFile fs.File,
+	puzzle *models.Puzzle,
 	maxTime time.Duration,
 	maxBranch int,
 ) (solving.SolutionsByWordCount, error) {
-	puzzle, err := loadPuzzle(puzzleFile)
-	if err != nil {
-		return solving.SolutionsByWordCount{}, err
-	}
-
 	log.Info().
 		Strs("sides", puzzle.GetSides()).
 		Stringer("letters", puzzle.GetLetterSet()).
 		Int("maxWords", puzzle.GetMaxWords()).
-		Msg("loaded puzzle")
+		Float64("maxTimeSec", maxTime.Seconds()).
+		Int("maxBranch", maxBranch).
+		Msg("solving puzzle")
 
 	wordsFile, err := words.Open("words/scrabble-words.txt")
 	if err != nil {
@@ -174,9 +223,7 @@ func solve(
 
 	start := time.Now()
 
-	log.Info().
-		Float64("maxTimeSec", maxTime.Seconds()).
-		Msg("solving puzzle")
+	log.Info().Msg("starting solver")
 
 	solver := solving.NewSolver(puzzle, wordSource, maxBranch)
 	solutions := solving.SolutionsByWordCount{}
@@ -184,8 +231,6 @@ func solve(
 
 	for !solver.IsFinished() && (time.Since(start) <= maxTime) {
 		solver.Step()
-
-		fmt.Print(".")
 
 		step++
 	}
