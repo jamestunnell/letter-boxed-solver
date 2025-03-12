@@ -30,7 +30,7 @@ type ListBuiltinCmd struct {
 
 type SolveCmd struct {
 	MaxBranch int    `help:"max degree of a solving branch" default:"5"`
-	MaxTime   string `help:"max time to spend solving" default:"250ms"`
+	MaxTime   string `help:"max time to spend solving" default:"5s"`
 	Outdir    string `arg:"-o" help:"output directory (created if it does not exist)" default:"."`
 }
 
