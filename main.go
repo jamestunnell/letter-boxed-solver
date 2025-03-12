@@ -31,13 +31,15 @@ type ListBuiltinCmd struct {
 type SolveCmd struct {
 	MaxBranch int    `help:"max degree of a solving branch" default:"5"`
 	MaxTime   string `help:"max time to spend solving" default:"5s"`
-	Outdir    string `arg:"-o" help:"output directory (created if it does not exist)" default:"."`
+
+	Outdir string `arg:"-o" help:"output directory (created if it does not exist)" default:"."`
 }
 
 type SolveBuiltinCmd struct {
 	SolveCmd
 
-	Fname string `arg:"required" help:"name of a built-in puzzle file"`
+	MaxWords int    `help:"Max words to allow for puzzle solution. Overrides value defined by puzzle."`
+	Fname    string `arg:"required" help:"name of a built-in puzzle file"`
 }
 
 type SolveGivenCmd struct {
@@ -139,6 +141,12 @@ func solveBuiltin(cmd *SolveBuiltinCmd) error {
 	puzzle, err := loadPuzzle(f)
 	if err != nil {
 		return fmt.Errorf("failed to load puzzle: %w", err)
+	}
+
+	if cmd.MaxWords > 0 {
+		puzzle.SetMaxWords(cmd.MaxWords)
+
+		log.Info().Int("maxWords", cmd.MaxWords).Msg("overriding puzzle max words")
 	}
 
 	log.Info().

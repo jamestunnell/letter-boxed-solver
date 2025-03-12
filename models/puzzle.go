@@ -81,6 +81,10 @@ func (p *Puzzle) GetMaxWords() int {
 	return p.maxWords
 }
 
+func (p *Puzzle) SetMaxWords(maxWords int) {
+	p.maxWords = maxWords
+}
+
 func (p *Puzzle) IsWordAllowed(word string) bool {
 	const minWordLen = 3
 
